@@ -1,0 +1,161 @@
+---
+title: "NBA Shot Selection Analysis for the 2014-2015 Season"
+author: "Jacob Walsh"
+date: "April 19, 2017"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r, tidy=TRUE, warning=FALSE, message=FALSE, comment=""}
+
+library(epitools)
+library(ggplot2)
+shots<-read.csv("shot_logs2.csv", head=TRUE)
+shots$contested<-ifelse(shots$CLOSE_DEF_DIST<=5, "contested", "uncontested")
+shots.near<-subset(shots,SHOT_DIST<15)
+
+```
+
+
+
+```{r, eval=FALSE, tidy=TRUE, warning=FALSE, message=FALSE, comment=""}
+full.model<-glm(SHOT_RESULT~LOCATION+SHOT_NUMBER+PERIOD+SHOT_CLOCK+DRIBBLES+TOUCH_TIME+SHOT_DIST+PTS_TYPE+CLOSE_DEF_DIST+pos+age+GP+MPG, family=binomial(link=logit), data=shots)
+summary(full.model)  #  based on p-values, position, shot number, period, and games played don't seem as important, and we some some very large G^2.
+anova(full.model)
+
+
+
+
+##Exploring fewer predictors
+
+#Reduced Logistic Model
+reduced.model<-glm(SHOT_RESULT~LOCATION+SHOT_CLOCK+DRIBBLES+TOUCH_TIME+SHOT_DIST+PTS_TYPE+CLOSE_DEF_DIST+age+GP+MPG, family=binomial(link=logit), data=shots)
+summary(reduced.model)
+anova(reduced.model)
+
+
+#further reduced by the massive G^2 only, this model is almost as good as the previous without nearly as many predictors.
+reduced.model3<-glm(SHOT_RESULT~SHOT_CLOCK+SHOT_DIST+CLOSE_DEF_DIST, family=binomial(link=logit), data=shots)
+summary(reduced.model3)
+anova(reduced.model3)
+
+#Reduced model with interactions
+reduced.model4<-glm(SHOT_RESULT~SHOT_CLOCK+SHOT_DIST+CLOSE_DEF_DIST+DRIBBLES + SHOT_DIST*DRIBBLES+SHOT_DIST*CLOSE_DEF_DIST, family=binomial(link=logit), data=shots)
+summary(reduced.model4)
+anova(reduced.model4)
+
+#shot distance seems to be of two categories, close shots and far shots. Splitting it at the free through line (15ft).
+hist(shots$SHOT_DIST, main="Distribution of Shot Distances", xlab="Shot Distance", ylab="Frequency")
+hist(shots$SHOT_DIST[shots$SHOT_DIST>=15])
+hist(shots$SHOT_DIST[shots$SHOT_DIST<15])
+shots$dist<-ifelse(shots$SHOT_DIST<15, "<15ft",">=15ft")
+tabdist<-table(shots$SHOT_RESULT, shots$dist)
+tabdist
+epitab(tabdist)#odds of making a shot when further than average distance is about half of that when compared with shots of less than average distance.
+
+
+#Just a thought about looking at subsets of shots based on the bimodal distribution of distances.
+
+ggplot(data=shots.near, aes(x=SHOT_DIST, y=CLOSE_DEF_DIST)) + geom_point(aes(color=factor(SHOT_RESULT)))
+
+#The full model for the shots less than 15 feet is similar to what we have above with the whole data set except that number of dribbles and touch time and defender distance are much more significant and shot distance(understandably as that was the reason for the split) and shot clock are less significant.
+near.model<-glm(SHOT_RESULT~LOCATION+SHOT_NUMBER+PERIOD+SHOT_CLOCK+DRIBBLES+TOUCH_TIME+SHOT_DIST+PTS_TYPE+CLOSE_DEF_DIST+pos+age+GP+MPG, family=binomial(link=logit), data=shots.near)
+summary(near.model)
+anova(near.model)
+
+
+#Reduced
+near.model2<-glm(SHOT_RESULT~SHOT_CLOCK+DRIBBLES+SHOT_DIST+CLOSE_DEF_DIST, family=binomial(link=logit), data=shots.near)
+summary(near.model2)
+anova(near.model2)
+
+#exploring defender distance on shot result.
+shots.near$contested<-ifelse(shots.near$CLOSE_DEF_DIST<=5, "contested", "uncontested")
+tab.fastbreak<-table(shots.near[shots.near$SHOT_CLOCK>18,]$SHOT_RESULT, shots.near[shots.near$SHOT_CLOCK>18,]$contested)
+tab.fastbreak
+epitab(tab.fastbreak)
+
+shots.near$contested<-ifelse(shots.near$CLOSE_DEF_DIST<=5, "contested", "uncontested")
+tab.nearcontest<-table(shots.near$SHOT_RESULT, shots.near$contested)
+tab.nearcontest
+epitab(tab.nearcontest)
+
+#exploring dribbles on near shots
+hist(shots.near$DRIBBLES, breaks=25)
+shots.near$drib<-ifelse(shots.near$DRIBBLES==0, "Assisted", "Not Assisted")
+tab.near.drib<-table(shots.near$SHOT_RESULT, shots.near$drib)
+tab.near.drib
+epitab(tab.near.drib)  #odds of a shot being made based on distance when 0 dribbles are taken compared to 1+ dribbles.
+
+```
+
+
+#Oral Presentation
+##pt1 rationale for Splitting distances
+```{r, tidy=TRUE, warning=FALSE, message=FALSE, comment=""}
+
+
+ggplot(data=shots, aes(x=SHOT_DIST, y=CLOSE_DEF_DIST, color=SHOT_RESULT))+ geom_point()+
+  geom_hline(yintercept=5) +
+  annotate("text", x=10, y=5, label=paste("5 ft"), vjust=-0.5) +
+  geom_vline(xintercept=15) +
+  annotate("text", x=15, y=25, label=paste("Free Throw Line (15 ft)"), vjust=-0.5, angle=90) +
+  ggtitle("Shot Result by Distance of Shot vs Defender") + labs(x="Distance to Basket", y="Distance to Closest Defender")
+
+shots$dist<-ifelse(shots$SHOT_DIST<15, "<15ft",">=15ft")
+tab.shotvsdist<-table(shots$SHOT_RESULT, shots$dist)
+tab.shotvsdist
+epitab(tab.shotvsdist)
+```
+##pt2 rationale for looking at fast breaks
+```{r, tidy=TRUE, warning=FALSE, message=FALSE, comment=""}
+
+ggplot(data=shots.near, aes(x=SHOT_CLOCK, y=CLOSE_DEF_DIST, color=SHOT_RESULT)) + 
+  geom_point() +geom_vline(xintercept=18) + geom_hline(yintercept=5) +
+  annotate("text", x=18, y=20, label=paste("18 sec"), vjust=-0.5, angle=90) +
+  annotate("text", x=15, y=5, label=paste("5 ft"), vjust=-0.5) +
+  labs(x="Shot Clock", y="Distance to Closest Defender", title="Defender Distance vs Shot Clock (Shot Distance<15ft)")
+tab.nearcontestvsmade<-table(shots.near$SHOT_RESULT, shots.near$contested)
+tab.nearcontestvsmade
+epitab(tab.nearcontestvsmade)
+```
+##pt3 Fastbreak- closer look at only those close shots >18
+```{r, tidy=TRUE, warning=FALSE, message=FALSE, comment=""}
+
+
+ggplot(data=shots.near[shots.near$SHOT_CLOCK>18,], aes(x=SHOT_DIST, y=CLOSE_DEF_DIST, colour=SHOT_RESULT)) + geom_point() +
+  geom_hline(yintercept=5) +
+  annotate("text", x=8, y=5, label=paste("5 ft"), vjust=-0.5) +
+  ggtitle("Fast Break Shot Results") + labs(x="Distance to Basket", y="Distance to Closest Defender")
+
+tab.fastvsdefend<-table(shots.near[shots.near$SHOT_CLOCK>18,]$SHOT_RESULT,shots.near[shots.near$SHOT_CLOCK>18,]$contested)
+tab.fastvsdefend
+epitab(tab.fastvsdefend)
+```
+##pt4 Alley Oops - Some shots are just way better than others (they are called layups)
+
+```{r, eval=FALSE, tidy=TRUE, warning=FALSE, message=FALSE, comment=""}
+
+shots$layup<-ifelse(shots$SHOT_DIST<5, "Layup", "NotLayup")
+shots.fb<-shots.0drib[shots.0drib$SHOT_CLOCK>18,]
+shots.0drib<-shots[shots$DRIBBLES==0,]
+shots.fb<-shots.0drib[shots.0drib$SHOT_CLOCK>18,]
+
+ggplot(data=shots.fb, aes(x=SHOT_DIST, y=CLOSE_DEF_DIST)) + 
+  geom_point(aes(color=factor(shots.fb$SHOT_RESULT))) + 
+  geom_vline(xintercept=5) +
+  geom_hline(yintercept=5) +
+  annotate("text", x=5, y=20, label=paste("5 ft"), vjust=-0.5, angle=90) +
+  annotate("text", x=15, y=5, label=paste("5 ft"), vjust=-0.5) +
+  labs(x="Distance to Basket", y="Distance to Closest Defender", title="Shot vs Defender Distances")
+
+
+tab.shotvsassistedfastbreak<-table( shots.fb$SHOT_RESULT, shots.fb$layup)
+tab.shotvsassistedfastbreak
+epitab(tab.shotvsassistedfastbreak)
+```
