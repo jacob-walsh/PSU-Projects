@@ -1,0 +1,39 @@
+---
+title: "Tables for Capstone"
+author: "Jacob Walsh"
+date: "October 7, 2017"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r echo=FALSE}
+
+
+vg.sales<-read.csv("C:/Penn State MAS/Stat 581/Video_Games_Sales_as_at_22_Dec_2016.csv", na.strings=c("", "N/A", "Misc", "<NA>"))
+#vg.sales<-vg.sales[-(1:50),]
+
+##############################New Categories#################################
+vg.sales$type1<-ifelse(vg.sales$Platform=="PC", "PC", "Console") 
+vg.sales$type2<-ifelse(vg.sales$Platform=="PC", "PC", 
+                       ifelse(vg.sales$Platform %in% c("PSP", "PSV", "DS", "3DS", "GB"), "Handheld", "Console")) 
+
+vg.sales$type3<-ifelse(vg.sales$Platform=="PC", "PC", 
+                       ifelse(vg.sales$Platform %in% c("Wii", "NES", "GB", "SNES", "WiiU", "3DS", "N64", "DS", "GBA", "GC"), "Nintendo", 
+                              ifelse(vg.sales$Platform %in% c("PS", "PS2", "PS3", "PS4", "PSP", "PSV"), "Playstation", 
+                                     ifelse(vg.sales$Platform %in% c("XB", "X360", "XOne"), "Xbox", "NA"))))
+vg.sales$logsales<-log(vg.sales$Global_Sales)
+
+vg.sales<-vg.sales[!vg.sales$type3=="NA",]
+vg.sales<-vg.sales[!is.na(vg.sales$Genre),]
+vgc<-vg.sales[complete.cases(vg.sales),]
+
+GxT<-table(vg.sales$Genre, vg.sales$type3)
+totals<-aggregate(Global_Sales~Name+Publisher, data=vg.sales, FUN=sum)
+
+
+
+
+```
